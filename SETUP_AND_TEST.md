@@ -44,8 +44,8 @@ No local Python setup needed. The daemon usually needs `sudo`.
 sudo docker build -f Dockerfile.cloud -t lab3-agent .
 
 # Smoke test: is the endpoint reachable?
-sudo docker run --rm -v "$PWD/.env:/app/.env:ro" \
-  lab3-agent python llm_provider.py "Say hello in one sentence."
+sudo docker run --rm -v "$PWD/.env:/app/.env:ro" lab3-agent \
+  python -c "from src.core.factory import build_provider; print(build_provider().generate('Say hello in one sentence.')['content'])"
 
 # Full Chatbot-vs-Agent suite (persists logs/ and report/ to the host)
 sudo docker run --rm \
@@ -86,7 +86,9 @@ python run_tests.py --mode agent        # agent only
 python run_tests.py --mode chatbot      # baseline only
 
 python -m src.agent.chatbot             # interactive chatbot REPL
-python llm_provider.py "hello"          # mentor's standalone provider probe
+
+# Endpoint smoke test (uses the configured provider)
+python -c "from src.core.factory import build_provider; print(build_provider().generate('hello')['content'])"
 ```
 
 ---
