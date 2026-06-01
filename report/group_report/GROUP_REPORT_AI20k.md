@@ -154,6 +154,13 @@ structured JSON event for analysis.
 - **Guardrails**: `max_steps` caps billing/infinite loops; v2 adds a
   repeated-action guard; unknown tools / bad arguments are caught and fed back
   as observations rather than crashing.
+- **Network resilience**: the cloud LLM call is wrapped in a retry loop with
+  exponential backoff (default 3 retries, 1s/2s/4s) targeting transient failures
+  (`APIConnectionError`, `APITimeoutError`, `RateLimitError`, 5xx). Each retry is
+  logged as an `LLM_RETRY` event (and a final `LLM_ERROR` if it gives up), so the
+  retry rate is observable in `analyze_logs.py`. The SDK's silent retries are
+  disabled so our logged loop is the single source of truth. Tool calls are local
+  functions, so they need no network handling.
 - **Observability**: every Thought/Action/Observation/error + per-call
   tokens/latency/cost is logged as JSON; `analyze_logs.py` turns it into metrics.
 - **Scaling**: move to LangGraph for branching/parallel tool calls; add vector

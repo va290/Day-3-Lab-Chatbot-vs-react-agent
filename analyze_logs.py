@@ -101,6 +101,9 @@ def analyze(events: List[Dict[str, Any]]) -> str:
     all_calls = [m for t in tasks for m in t["metrics"]]
     systems = sorted({system_label(t) for t in tasks})
 
+    n_retry = sum(1 for e in events if e.get("event") == "LLM_RETRY")
+    n_llm_err = sum(1 for e in events if e.get("event") == "LLM_ERROR")
+
     out: List[str] = ["# Telemetry Analysis\n"]
     out.append(f"Parsed **{len(events)}** events → **{len(tasks)}** tasks, "
                f"**{len(all_calls)}** LLM calls.\n")
@@ -108,6 +111,8 @@ def analyze(events: List[Dict[str, Any]]) -> str:
     # 1) Global metrics ------------------------------------------------------
     out.append("## 1. Overall LLM metrics")
     out += md_metric_block(all_calls)
+    out.append(f"- Network resilience: **{n_retry}** LLM_RETRY events, "
+               f"**{n_llm_err}** unrecoverable LLM_ERROR(s)")
 
     # 2) Per-system comparison ----------------------------------------------
     out.append("\n## 2. Comparison by system\n")
