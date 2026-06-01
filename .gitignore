@@ -7,3 +7,4 @@ __pycache__/
 models/
 .idea/
 report/last_run_summary.md
+report/analysis.md

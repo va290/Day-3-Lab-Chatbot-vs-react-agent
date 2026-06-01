@@ -81,9 +81,13 @@ sudo docker run --rm \
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt        # or just: pip install openai python-dotenv  (cloud only)
 
-python run_tests.py                     # full suite
-python run_tests.py --mode agent        # agent only
+python run_tests.py                     # full suite: chatbot + agent v1 + agent v2
+python run_tests.py --mode agent        # agents only
 python run_tests.py --mode chatbot      # baseline only
+python run_tests.py --version v2        # only the improved agent prompt
+python run_tests.py --version v1        # only the baseline agent prompt
+
+python analyze_logs.py                  # turn logs/ into report/analysis.md
 
 python -m src.agent.chatbot             # interactive chatbot REPL
 
@@ -95,8 +99,12 @@ python -c "from src.core.factory import build_provider; print(build_provider().g
 
 ## 4. What the test runner does
 
-`run_tests.py` runs the same cases through **both** the baseline `Chatbot` and
-the `ReActAgent`:
+`run_tests.py` runs the same cases through the baseline `Chatbot` and the
+`ReActAgent` in **two prompt versions** (`v1` = minimal, `v2` = improved with a
+few-shot example, stricter format rules, repeat-action guard, and a stronger
+parse-error nudge). This gives a direct **v1-vs-v2 ablation**.
+
+It runs these cases:
 
 | Case        | Type       | Checks |
 | :---------- | :--------- | :----- |
@@ -119,6 +127,15 @@ Outputs:
 
 ## 5. Reading the logs (for the report)
 
+The fastest path is the analyzer, which computes every metric in `EVALUATION.md`
+(token efficiency, latency P50/P90/P99, loop counts, failure breakdown,
+chatbot-vs-agent and v1-vs-v2 comparison) and writes `report/analysis.md`:
+
+```bash
+python analyze_logs.py                      # all logs/*.log -> report/analysis.md
+python analyze_logs.py logs/2026-06-01.log  # a specific log
+```
+
 Every line in `logs/<date>.log` is a JSON event. Key event types:
 
 | Event | Meaning |
@@ -127,7 +144,7 @@ Every line in `logs/<date>.log` is a JSON event. Key event types:
 | `AGENT_THOUGHT` | the model's reasoning + raw output for the step |
 | `AGENT_ACTION` | tool name + parsed arguments |
 | `AGENT_OBSERVATION` | tool result fed back into the loop |
-| `AGENT_ERROR` | `PARSE_ERROR`, `HALLUCINATED_TOOL`, `BAD_ARGUMENTS`, `MAX_STEPS_EXCEEDED` |
+| `AGENT_ERROR` | `PARSE_ERROR`, `HALLUCINATED_TOOL`, `BAD_ARGUMENTS`, `REPEATED_ACTION` (v2), `MAX_STEPS_EXCEEDED` |
 | `LLM_METRIC` | per-call tokens, latency_ms, cost_estimate |
 | `CHATBOT_START` / `CHATBOT_END` | baseline calls |
 
@@ -160,3 +177,4 @@ print('est cost:', round(sum(x['cost_estimate'] for x in m), 4))
 | `Missing required env values` | `.env` not mounted (`-v "$PWD/.env:/app/.env:ro"`) or keys not set. |
 | Agent `PARSE_ERROR` steps | The model emitted prose instead of `Action:`/`Final Answer:`. The loop feeds the error back and the model usually recovers; tighten the system prompt for v2. |
 | Local model `FileNotFoundError` | `LOCAL_MODEL_PATH` / mount path does not point at the `.gguf` file. |
+| `PermissionError` writing `logs/*.log` on the host | The log was created by a previous Docker run (owned by root). Run `sudo rm -rf logs` and re-run, or stay consistent (always Docker, or always host). |

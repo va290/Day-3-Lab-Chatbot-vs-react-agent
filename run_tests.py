@@ -56,7 +56,7 @@ def grade(answer: str, expected) -> str:
     return "PASS" if expected.lower() in norm else "FAIL"
 
 
-def run_one(name: str, runner, case: dict) -> dict:
+def run_one(name: str, runner, case: dict, is_agent: bool) -> dict:
     start = time.time()
     try:
         answer = runner.run(case["q"])
@@ -65,34 +65,37 @@ def run_one(name: str, runner, case: dict) -> dict:
         answer, err = f"<EXCEPTION: {e}>", str(e)
     dur = int((time.time() - start) * 1000)
     verdict = "ERROR" if err else grade(answer, case["expect"])
-    steps = len(getattr(runner, "history", [])) if name == "agent" else 1
-    print(f"  [{name:7}] {case['id']:9} {verdict:4} ({dur:>6}ms, {steps} step) -> "
-          f"{answer[:90].replace(chr(10), ' ')}")
+    steps = len(getattr(runner, "history", [])) if is_agent else 1
+    print(f"  [{name:10}] {case['id']:9} {verdict:4} ({dur:>6}ms, {steps} step) -> "
+          f"{answer[:80].replace(chr(10), ' ')}")
     return {"id": case["id"], "system": name, "verdict": verdict,
             "ms": dur, "steps": steps, "answer": answer}
 
 
-def write_summary(rows):
+def write_summary(rows, systems):
     os.makedirs("report", exist_ok=True)
     path = os.path.join("report", "last_run_summary.md")
     by_case = {}
     for r in rows:
         by_case.setdefault(r["id"], {})[r["system"]] = r
-    lines = ["# Last Test Run Summary\n",
-             "| Case | Chatbot | Agent | Chatbot ms | Agent ms | Agent steps |",
-             "| :--- | :--- | :--- | ---: | ---: | ---: |"]
+
+    header = "| Case | " + " | ".join(systems) + " |"
+    sep = "| :--- " + "| :--- " * len(systems) + "|"
+    lines = ["# Last Test Run Summary\n", header, sep]
     for cid, sysmap in by_case.items():
-        cb = sysmap.get("chatbot", {})
-        ag = sysmap.get("agent", {})
-        lines.append(f"| {cid} | {cb.get('verdict','-')} | {ag.get('verdict','-')} "
-                     f"| {cb.get('ms','-')} | {ag.get('ms','-')} | {ag.get('steps','-')} |")
-    # Aggregate pass rates (ignoring N/A).
-    for sysname in ("chatbot", "agent"):
-        graded = [r for r in rows if r["system"] == sysname and r["verdict"] in ("PASS", "FAIL", "ERROR")]
+        cells = [cid] + [sysmap.get(s, {}).get("verdict", "-") for s in systems]
+        lines.append("| " + " | ".join(cells) + " |")
+
+    lines.append("\n## Aggregate (pass rate / avg steps / avg ms, graded cases only)\n")
+    for s in systems:
+        graded = [r for r in rows if r["system"] == s and r["verdict"] in ("PASS", "FAIL", "ERROR")]
+        if not graded:
+            continue
         passed = sum(1 for r in graded if r["verdict"] == "PASS")
-        if graded:
-            lines.append(f"\n- **{sysname} pass rate**: {passed}/{len(graded)} "
-                         f"({100*passed//len(graded)}%)")
+        avg_steps = sum(r["steps"] for r in graded) / len(graded)
+        avg_ms = sum(r["ms"] for r in graded) // len(graded)
+        lines.append(f"- **{s}**: {passed}/{len(graded)} passed "
+                     f"({100*passed//len(graded)}%), avg {avg_steps:.1f} steps, avg {avg_ms}ms")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     print(f"\nSummary written to {path}")
@@ -101,6 +104,8 @@ def write_summary(rows):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["both", "agent", "chatbot"], default="both")
+    parser.add_argument("--version", choices=["v1", "v2", "both"], default="both",
+                        help="Which agent prompt version(s) to run (ablation).")
     parser.add_argument("--max-steps", type=int, default=6)
     args = parser.parse_args()
 
@@ -110,19 +115,28 @@ def main():
     llm = build_provider()
     print(f"Model: {llm.model_name}\n")
 
-    chatbot = Chatbot(llm)
-    agent = ReActAgent(llm, TOOLS, max_steps=args.max_steps)
+    # Build the set of systems to evaluate.
+    versions = ["v1", "v2"] if args.version == "both" else [args.version]
+    systems = []          # ordered list of column/system names
+    runners = {}          # name -> (runner, is_agent)
+    if args.mode in ("both", "chatbot"):
+        systems.append("chatbot")
+        runners["chatbot"] = (Chatbot(llm), False)
+    if args.mode in ("both", "agent"):
+        for v in versions:
+            name = f"agent-{v}"
+            systems.append(name)
+            runners[name] = (ReActAgent(llm, TOOLS, max_steps=args.max_steps, version=v), True)
 
     rows = []
     for case in TEST_CASES:
         tag = "MULTI-STEP" if case["multi_step"] else "simple"
         print(f"\n=== {case['id']} ({tag}): {case['q']}")
-        if args.mode in ("both", "chatbot"):
-            rows.append(run_one("chatbot", chatbot, case))
-        if args.mode in ("both", "agent"):
-            rows.append(run_one("agent", agent, case))
+        for name in systems:
+            runner, is_agent = runners[name]
+            rows.append(run_one(name, runner, case, is_agent))
 
-    write_summary(rows)
+    write_summary(rows, systems)
 
 
 if __name__ == "__main__":
