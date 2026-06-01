@@ -3,7 +3,6 @@
 - **Student Name**: Đỗ Việt Anh
 - **Student ID**: 2A202601008
 - **Date**: 2026-06-01
-- **Team**: AI20k - Lab 3 Team (members: Đỗ Việt Anh, Long)
 
 ---
 
