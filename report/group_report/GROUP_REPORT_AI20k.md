@@ -159,8 +159,3 @@ structured JSON event for analysis.
 - **Scaling**: move to LangGraph for branching/parallel tool calls; add vector
   retrieval for tool selection when the tool count grows; real pricing table to
   replace the mock cost estimate.
-
----
-
-> [!NOTE]
-> Submit this report by renaming it to `GROUP_REPORT_[TEAM_NAME].md` and placing it in this folder.

@@ -82,8 +82,3 @@
 - **Performance**: for a many-tool system, retrieve the top-k relevant tools via
   a vector store instead of stuffing every description into the prompt (which
   inflates prompt tokens — we already saw v2's few-shot add ~12% tokens/task).
-
----
-
-> [!NOTE]
-> Submit this report by renaming it to `REPORT_[YOUR_NAME].md` and placing it in this folder.
