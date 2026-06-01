@@ -1,6 +1,9 @@
 .env
+env
 logs/
 __pycache__/
 *.log
 .DS_Store
 models/
+.idea/
+report/last_run_summary.md

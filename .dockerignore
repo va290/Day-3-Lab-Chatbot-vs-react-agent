@@ -1,0 +1,8 @@
+.git
+__pycache__
+*.pyc
+logs
+models
+*.gguf
+.env
+report/last_run_summary.md

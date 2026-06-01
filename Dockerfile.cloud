@@ -1,0 +1,15 @@
+# Slim image for running the lab against the cloud OpenAI-compatible endpoint.
+# No native compilation (llama-cpp is NOT installed) -> builds in seconds.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Only the deps the cloud path needs.
+# Generous retries/timeout because the build network is flaky (PyPI disconnects).
+ENV PIP_DEFAULT_TIMEOUT=120 PIP_RETRIES=10
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir "openai>=1.0.0" "python-dotenv>=1.0.0" "pytest>=7.4.0"
+
+COPY . .
+
+CMD ["python", "run_tests.py"]
